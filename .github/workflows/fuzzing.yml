@@ -1,15 +1,12 @@
 name: Fuzzing
-
 on:
   push:
     branches: [ main ]
-
 permissions:
   contents: write
   pull-requests: write
   security-events: write
   actions: read
-
 jobs:
   ffuf:
     runs-on: ubuntu-latest
@@ -19,6 +16,9 @@ jobs:
           ports:
             - 3000:3000
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
       - name: Wait for service
         run: |
             sleep 10 
@@ -26,7 +26,7 @@ jobs:
               -H $'Host: localhost:3000' -H $'Content-Length: 43' -H $'Content-Type: application/json' -H $'Connection: keep-alive' \
               --data-binary $'{\"email\":\"\' or 1=1 -- -\",\"password\":\"pass\"}' \
               $'http://localhost:3000/rest/user/login'
-
+              
       - name: Get payloads
         run: |
           wget https://raw.githubusercontent.com/swisskyrepo/PayloadsAllTheThings/refs/heads/master/SQL%20Injection/Intruder/SQL-Injection
@@ -34,18 +34,37 @@ jobs:
       - name: Install fuzzing
         run: |
           go install github.com/ffuf/ffuf/v2@latest
-
+          
       - name: Run fuzzing
         run: |
-          $HOME/go/bin/ffuf || true
-
+          # Используем наш скрипт если есть
+          if [ -f "fuzz_script.sh" ]; then
+            chmod +x fuzz_script.sh
+            ./fuzz_script.sh
+          else
+            # Или запускаем ffuf напрямую
+            $HOME/go/bin/ffuf -w sql_payloads.txt:FUZZ \
+              -u http://localhost:3000/rest/user/login \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -d '{"email":"FUZZ","password":"test123"}' \
+              -mc 200,401,500 \
+              -o ffuf_results.json \
+              -of json || true
+          fi
+          
       - name: Get Logs from Service
         run: |
           docker logs $(docker ps -q) > juice-logs.log
-
+          
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
           name: security-reports-bundle
           path: |
             juice-logs.log
+            ffuf_results.json
+            sql_payloads.txt
+            fuzz_script.sh
+            FUZZING_REPORT.md
+            SQL-Injection
