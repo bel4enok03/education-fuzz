@@ -6,7 +6,7 @@ echo "[+] Starting SQL injection fuzzing..."
 
 # Запуск ffuf против Juice Shop
 ffuf -w sql_payloads.txt:FUZZ \
-     -u http://localhost:3000/rest/user/login \
+     -u http://juice:3000/rest/user/login \
      -X POST \
      -H "Content-Type: application/json" \
      -d '{"email":"FUZZ","password":"test123"}' \
